@@ -13,11 +13,21 @@ using Newtonsoft.Json;
 
 namespace WikiScreen.Chrome
 {
+    public class Viewport
+    {
+        public double x { get; set; }
+        public double y { get; set; }
+        public double width { get; set; }
+        public double height { get; set; }
+        public double scale { get; set; }
+        
+    }
+    
     public class Chrome : IDisposable
     {
         private const string JsonPostfix = "/json";
 
-        private const int BufferSize = 4096;
+        private const int BufferSize = 1024 * 1024 * 1024;//4096 * 32;
 
         private readonly string _remoteDebuggingUri;
         private Uri _sessionWsEndpoint;
@@ -26,7 +36,10 @@ namespace WikiScreen.Chrome
 
         private int _uniq_id;
         
-        private Action<IChromeResponse> _onMessage = e => { };
+        private Action<IChromeResponse> _onMessage = e =>
+        {
+            Console.WriteLine("debug: " + e.result);
+        };
 
         public Chrome(string remoteDebuggingUri)
         {
@@ -42,9 +55,6 @@ namespace WikiScreen.Chrome
 
         public async void StartListen()
         {
-            
-            var buffer = new byte[BufferSize];
-
             try
             {
                 while (_ws.State == WebSocketState.Open)
@@ -55,9 +65,10 @@ namespace WikiScreen.Chrome
                     WebSocketReceiveResult result;
                     do
                     {
-                        result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        var segment = WebSocket.CreateClientBuffer(BufferSize,BufferSize);
+                        result = await _ws.ReceiveAsync(segment, CancellationToken.None);
                         
-                        
+                        Console.WriteLine("Get message " + result.Count);
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
@@ -65,7 +76,7 @@ namespace WikiScreen.Chrome
                         }
                         else
                         {
-                            var str = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                            var str = Encoding.UTF8.GetString(segment.Array, 0, result.Count);
                             stringResult.Append(str);
                         }
 
@@ -126,6 +137,22 @@ namespace WikiScreen.Chrome
             return SendCommand(cmd);
         }
 
+        public Task<dynamic> ScreenElement(Viewport viewport)
+        {
+            var cmd = new ChromeRequest
+            {
+                method = "Page.captureScreenshot",
+                @params = new Dictionary<string, dynamic> {
+                    { "clip", viewport },
+                    { "format", "jpg" },
+                    {"quality", 0}
+                }
+            };
+            
+            return SendCommand(cmd);
+            
+        }
+        
         public Task<dynamic> Eval(string command, bool await_promise)
         {           
             var cmd = new ChromeRequest
@@ -170,9 +197,7 @@ namespace WikiScreen.Chrome
                 {
                     count = messageBuffer.Length - offset;
                 }
-                
-                Console.WriteLine("send bytes");
-                
+
                 _ws.SendAsync(new ArraySegment<byte>(messageBuffer, offset, count), WebSocketMessageType.Text,
                     lastMessage, CancellationToken.None);
             }
@@ -218,9 +243,7 @@ namespace WikiScreen.Chrome
             Console.WriteLine(str);
             return Encoding.UTF8.GetBytes(str);
         }
-
-        
-        
+    
         public void SetActiveSession(string sessionWSEndpoint)
         {
             _sessionWsEndpoint = new Uri(sessionWSEndpoint.Replace("ws://localhost", "ws://127.0.0.1"));

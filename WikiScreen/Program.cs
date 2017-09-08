@@ -1,4 +1,5 @@
 ﻿using System;
+using WikiScreen.Chrome;
 
 namespace WikiScreen
 {
@@ -67,6 +68,16 @@ namespace WikiScreen
                 Console.WriteLine(result.Result);
                 
                 Console.WriteLine(res["result"]["value"]);
+
+                var val = res["result"]["value"];
+                chrome.ScreenElement(new Viewport
+                {
+                    x = val["x"],
+                    y = val["y"],
+                    width = val["width"],
+                    height = val["height"],
+                    scale = 0.5
+                });
 
                 Console.ReadLine();
             }
