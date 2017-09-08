@@ -9,6 +9,7 @@ using System.Threading;
 using WikiScreen.Chrome.Requests;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace WikiScreen.Chrome
 {
@@ -16,14 +17,16 @@ namespace WikiScreen.Chrome
     {
         private const string JsonPostfix = "/json";
 
-        private const int BufferSize = 1024;
+        private const int BufferSize = 4096;
 
         private readonly string _remoteDebuggingUri;
         private Uri _sessionWsEndpoint;
 
         private ClientWebSocket _ws;
+
+        private int _uniq_id;
         
-        private Action<string> _onMessage;
+        private Action<IChromeResponse> _onMessage = e => { };
 
         public Chrome(string remoteDebuggingUri)
         {
@@ -39,6 +42,7 @@ namespace WikiScreen.Chrome
 
         public async void StartListen()
         {
+            
             var buffer = new byte[BufferSize];
 
             try
@@ -52,6 +56,8 @@ namespace WikiScreen.Chrome
                     do
                     {
                         result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        
+                        
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
@@ -65,18 +71,14 @@ namespace WikiScreen.Chrome
 
                     } while (!result.EndOfMessage);
 
-                    Console.WriteLine("StartListen" + stringResult);
+                    var res = JsonConvert.DeserializeObject<ChromeResponse>(stringResult.ToString());
 
-                    _onMessage(stringResult.ToString());
+                    _onMessage(res);
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                
-            }
-            finally
-            {
-                _ws.Dispose();
+                Console.WriteLine(e);
             }
         }
 
@@ -100,33 +102,62 @@ namespace WikiScreen.Chrome
                 select r).ToList();
         }
 
-        public Task<string> NavigateTo(string uri)
+        public Task<dynamic> NavigateTo(string uri)
         {
-            var json = @"{""method"":""Page.navigate"",""params"":{""url"":""" + uri + @"""},""id"":1}";
-            return SendCommand(json,1);
+            var cmd = new ChromeRequest
+            {
+                method = "Page.navigate",
+                @params = new Dictionary<string, dynamic> {
+                    { "url", uri }
+                }
+            };
+            
+            return SendCommand(cmd);
         }
 
-        public Task<string> WaitForReady()
+        public Task<dynamic> PageEnable()
         {
-            var json = @"{""method"":""Page.enable"",""params"":{ },""id"":2}";
-            return SendCommand(json,2);
+            var cmd = new ChromeRequest
+            {
+                method = "Page.enable",
+                @params = new Dictionary<string, dynamic>()
+            };
+            
+            return SendCommand(cmd);
         }
 
-        public Task<string> Eval(string cmd)
-        {
-            var json = @"{""method"":""Runtime.evaluate"",""params"":{""expression"":""" + cmd +
-                       @""",""objectGroup"":""console"",""includeCommandLineAPI"":true,""doNotPauseOnExceptions"":false,""returnByValue"":false},""id"":3}";
-            return SendCommand(json,3);
+        public Task<dynamic> Eval(string command, bool await_promise)
+        {           
+            var cmd = new ChromeRequest
+            {
+                method = "Runtime.evaluate",
+                @params = new Dictionary<string, dynamic>
+                {
+                    {"expression", command},
+                    //{"objectGroup", "console"},
+                    {"includeCommandLineAPI", true},
+                    {"doNotPauseOnExceptions", false},
+                    {"returnByValue", true},
+                    {"awaitPromise", await_promise}
+                }
+            };
+            return SendCommand(cmd);
         }
 
-        private async Task<string> SendCommand(string cmd, int id)
+        private async Task<dynamic> SendCommand(IChromeRequest cmd)
         {
             if (_ws.State != WebSocketState.Open)
             {
                 throw new Exception("Connection is not open.");
             }
 
-            var messageBuffer = Encoding.UTF8.GetBytes(cmd);
+            _uniq_id++;
+
+            var current_id = _uniq_id;
+
+            cmd.id = current_id;
+
+            var messageBuffer = ToJsonBytes(cmd);
             var messagesCount = (int) Math.Ceiling((double) messageBuffer.Length / BufferSize);
 
             for (var i = 0; i < messagesCount; i++)
@@ -139,25 +170,28 @@ namespace WikiScreen.Chrome
                 {
                     count = messageBuffer.Length - offset;
                 }
-
+                
+                Console.WriteLine("send bytes");
+                
                 _ws.SendAsync(new ArraySegment<byte>(messageBuffer, offset, count), WebSocketMessageType.Text,
                     lastMessage, CancellationToken.None);
             }
-
-
+            
+            Console.WriteLine("exec command " + current_id);
             
             return await Task.Run(() =>
             {
-                var t = new TaskCompletionSource<string>();
+                var t = new TaskCompletionSource<dynamic>();
 
-                void Cb(string s)
+                void Cb(IChromeResponse s)
                 {
-                    if (s.IndexOf(@"""id"":" + id) > -1)
-                    {
-                        t.TrySetResult(s);
+                    if (s.id != current_id) return;
+                    
+                    Console.WriteLine("Awaiter for " + current_id, s.id, s.result);
+                    
+                    t.TrySetResult(s.result);
 
-                        _onMessage -= Cb;
-                    }
+                    _onMessage -= Cb;
                 }
 
                 _onMessage += Cb;
@@ -177,14 +211,16 @@ namespace WikiScreen.Chrome
             }
         }
 
-        private T Deserialise<T>(Stream json)
+        private static byte[] ToJsonBytes<T>(T item)
         {
-            var obj = Activator.CreateInstance<T>();
-            var serializer = new DataContractJsonSerializer(obj.GetType());
-            obj = (T) serializer.ReadObject(json);
-            return obj;
+            var str = JsonConvert.SerializeObject(item, Formatting.None);
+            
+            Console.WriteLine(str);
+            return Encoding.UTF8.GetBytes(str);
         }
 
+        
+        
         public void SetActiveSession(string sessionWSEndpoint)
         {
             _sessionWsEndpoint = new Uri(sessionWSEndpoint.Replace("ws://localhost", "ws://127.0.0.1"));

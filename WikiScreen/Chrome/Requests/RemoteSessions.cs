@@ -1,11 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace WikiScreen.Chrome.Requests
 {
+    [Serializable]
     public class RemoteSessions : IChromeRequest
     {
-                
+        public int id { get; set; }
+        public string method { get; set; }
+        public Dictionary<string, dynamic> @params { get; set; }
     }
     
     [Serializable]

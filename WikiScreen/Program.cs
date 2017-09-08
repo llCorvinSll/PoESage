@@ -24,31 +24,49 @@ namespace WikiScreen
                 chrome.SetActiveSession(sessionWSEndpoint);
                 var connection = chrome.Connect();
                 connection.Wait();
-
+               
                 chrome.StartListen();
 
                 var result = chrome.NavigateTo("https://pathofexile.gamepedia.com/Star_of_Wraeclast");
 
                 result.Wait();
+                
+                result = chrome.Eval(@"(function(selector) { return new Promise((fulfill, reject) => {
+        const element = document.querySelector(selector);
 
-                result = chrome.WaitForReady();
+        if(element) {
+            fulfill();
+            return;
+        }
+
+        new MutationObserver((mutations, observer) => {
+            const nodes = [];
+            
+            mutations.forEach((mutation) => {
+                nodes.push(...mutation.addedNodes);
+            });
+           
+            if (nodes.find((node) => node.matches(selector))) {
+                observer.disconnect();
+                fulfill();
+            }
+        }).observe(document.body, {
+            childList: true
+        })
+    }).then(() => {
+        const element = document.querySelector(selector);
+
+        const {left, top, width, height} = element.getBoundingClientRect();
+        return {x: left, y: top, width, height};
+    })
+})("".item-box:first-child"")", true);
 
                 result.Wait();
 
+                var res = result.Result;
                 Console.WriteLine(result.Result);
-
-                //result = chrome.Eval("document.getElementsByClassName('item-box')[0].style.backgroundColor = 'red'");
-                result = chrome.Eval(@"(() => {
-                const element = document.querySelector('.item-box:first-child');
-                if (!element)
-                    return 'asdsd';
-                const {x, y, width, height} = element.getBoundingClientRect();
-                return {left: x, top: y, width, height, id: element.id};
-               })()");
-
-                result.Wait();
-
-                Console.WriteLine(result.Result);
+                
+                Console.WriteLine(res["result"]["value"]);
 
                 Console.ReadLine();
             }
