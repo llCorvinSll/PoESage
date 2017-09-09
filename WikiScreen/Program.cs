@@ -1,9 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Threading.Tasks;
-using WikiScreen.Chrome;
-
-namespace WikiScreen
+﻿namespace WikiScreen
 {
     public class Program
     {

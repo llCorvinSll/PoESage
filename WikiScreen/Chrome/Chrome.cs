@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using WikiScreen.Chrome.Requests;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -16,11 +15,11 @@ namespace WikiScreen.Chrome
         public double height { get; set; }
         public double scale { get; set; }
     }
-    
+
     public class Chrome : IDisposable
     {
         private readonly ChromeTransport _tr;
-        
+
         public Chrome(string remoteDebuggingUri)
         {
             _tr = new ChromeTransport(remoteDebuggingUri);
@@ -41,16 +40,17 @@ namespace WikiScreen.Chrome
             var cmd = new ChromeRequest
             {
                 method = "Page.navigate",
-                @params = new Dictionary<string, dynamic> {
-                    { "url", uri }
+                @params = new Dictionary<string, dynamic>
+                {
+                    {"url", uri}
                 }
             };
-            
+
             return _tr.SendCommand<ChromeResponse<object>>(cmd);
         }
-        
+
         //
-        
+
         public Task<GetLayoutMetricsResponse> GetLayoutMetrics()
         {
             var cmd = new ChromeRequest
@@ -58,7 +58,7 @@ namespace WikiScreen.Chrome
                 method = "Page.getLayoutMetrics",
                 @params = new Dictionary<string, dynamic>()
             };
-            
+
             return _tr.SendCommand<GetLayoutMetricsResponse>(cmd);
         }
 
@@ -73,54 +73,76 @@ namespace WikiScreen.Chrome
             return _tr.SendCommand<ChromeResponse<dynamic>>(cmd);
         }
 
-        public Task<ChromeResponse<dynamic>> ScreenElement(Viewport viewport)
+        public Task<CaptureScreenshotResponse> ScreenElement(Viewport viewport)
         {
             var cmd = new ChromeRequest
             {
                 method = "Page.captureScreenshot",
-                @params = new Dictionary<string, dynamic> {
-                    { "clip", viewport },
-                    { "format", "png" }
+                @params = new Dictionary<string, dynamic>
+                {
+                    {"clip", viewport},
+                    {"format", "png"}
                 }
             };
-            
-            return _tr.SendCommand<ChromeResponse<dynamic>>(cmd); 
+
+            return _tr.SendCommand<CaptureScreenshotResponse>(cmd);
         }
 
-        public Task<ChromeResponse<dynamic>> SetDeviceMetricsOverride(int w, int h, double scale_factor) 
+        public Task<ChromeResponse<dynamic>> SetDeviceMetricsOverride(int w, int h, double scale_factor)
         {
             var cmd = new ChromeRequest
             {
                 method = "Emulation.setDeviceMetricsOverride",
                 @params = new Dictionary<string, dynamic>
                 {
-                    {"width", w },
-                    {"screenWidth", w },
-                    {"height", h },
-                    {"screenHeight", h },
-                    {"positionX", 0 },
-                    {"positionY", 0 },
-                    {"deviceScaleFactor", scale_factor },
-                    {"mobile", false },
-                    {"fitWindow", true }
+                    {"width", w},
+                    {"screenWidth", w},
+                    {"height", h},
+                    {"screenHeight", h},
+                    {"positionX", 0},
+                    {"positionY", 0},
+                    {"deviceScaleFactor", scale_factor},
+                    {"mobile", false},
+                    {"fitWindow", true}
                 }
             };
             return _tr.SendCommand<ChromeResponse<dynamic>>(cmd);
         }
 
-        public Task<ChromeResponse<dynamic>> SetVisibleSize(int w, int h) 
+        public Task<ElementBoundReactResultResponse> getBoundingRectBySelector(string selector)
         {
-            var cmd = new ChromeRequest
-            {
-                method = "Emulation.setVisibleSize",
-                @params = new Dictionary<string, dynamic>
-                {
-                    {"width", w },
-                    {"height", h }
-                }
-            };
-            return _tr.SendCommand<ChromeResponse<dynamic>>(cmd);
+            return Eval<ElementBoundReactResultResponse>(@"
+(function(selector) { return new Promise((fulfill, reject) => {
+        const element = document.querySelector(selector);
+
+        if(element) {
+            fulfill();
+            return;
+        }
+
+        new MutationObserver((mutations, observer) => {
+            const nodes = [];
             
+            mutations.forEach((mutation) => {
+                nodes.push(...mutation.addedNodes);
+            });
+           
+            if (nodes.find((node) => node.matches(selector))) {
+                observer.disconnect();
+                fulfill();
+            }
+        }).observe(document.body, {
+            childList: true
+        })
+    }).then(() => {
+        const element = document.querySelector(selector);
+
+        var docRect = element.ownerDocument.documentElement.getBoundingClientRect();
+
+        const {left, top, width, height, x, y} = element.getBoundingClientRect();
+        return {x: left - docRect.left , y: top - docRect.top, width, height};
+    })
+})('" + selector + "')", true);
         }
 
         public async Task<dynamic> WaitForPage()
@@ -143,9 +165,9 @@ namespace WikiScreen.Chrome
                 return t.Task;
             });
         }
-        
+
         public Task<TRes> Eval<TRes>(string command, bool await_promise) where TRes : IChromeResponse
-        {           
+        {
             var cmd = new ChromeRequest
             {
                 method = "Runtime.evaluate",

@@ -2,13 +2,12 @@
 using System.IO;
 using System.Threading.Tasks;
 using WikiScreen.Chrome;
-using WikiScreen.Chrome.Requests.Response;
 
 namespace WikiScreen
 {
     public class ScreenMaker
     {
-        public static async Task<byte[]> MakeWikiScreen(string remote_chrome, string url, double scale_factor)
+        public static async Task<string> MakeWikiScreen(string remote_chrome, string url, double scale_factor)
         {
             using (var chrome = new Chrome.Chrome(remote_chrome))
             {
@@ -39,46 +38,12 @@ namespace WikiScreen
                 
                 
                 var layout_metrics = await chrome.GetLayoutMetrics();
-
-                Console.WriteLine("Content size " + layout_metrics.result.contentSize);
-
                 var content_width = Convert.ToInt32(layout_metrics.result.contentSize.width);
                 var content_height = Convert.ToInt32(layout_metrics.result.contentSize.height);
 
                 await chrome.SetDeviceMetricsOverride(content_width, content_height, scale_factor);
-                
-                
-                var image_size = await chrome.Eval<ElementBoundReactResultResponse>(@"(function(selector) { return new Promise((fulfill, reject) => {
-        const element = document.querySelector(selector);
 
-        if(element) {
-            fulfill();
-            return;
-        }
-
-        new MutationObserver((mutations, observer) => {
-            const nodes = [];
-            
-            mutations.forEach((mutation) => {
-                nodes.push(...mutation.addedNodes);
-            });
-           
-            if (nodes.find((node) => node.matches(selector))) {
-                observer.disconnect();
-                fulfill();
-            }
-        }).observe(document.body, {
-            childList: true
-        })
-    }).then(() => {
-        const element = document.querySelector(selector);
-
-        var docRect = element.ownerDocument.documentElement.getBoundingClientRect();
-
-        const {left, top, width, height, x, y} = element.getBoundingClientRect();
-        return {x: left - docRect.left , y: top - docRect.top, width, height};
-    })
-})("".item-box:first-child"")", true);
+                var image_size = await chrome.getBoundingRectBySelector(".item-box:first-child");
 
                 var val = image_size.result.result.value;
                 
@@ -91,9 +56,9 @@ namespace WikiScreen
                     scale = 1
                 });
                 
-                var raw_img = screenshot.result["data"];
+                var raw_img = screenshot.result.data;
                 
-                GetMessage(raw_img.ToString());
+                GetMessage(raw_img);
 
                 return raw_img;
 
