@@ -7,9 +7,9 @@ using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading;
 using WikiScreen.Chrome.Requests;
-using System.Net.WebSockets;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using WebSocket4Net;
 
 namespace WikiScreen.Chrome
 {
@@ -32,13 +32,15 @@ namespace WikiScreen.Chrome
         private readonly string _remoteDebuggingUri;
         private Uri _sessionWsEndpoint;
 
-        private ClientWebSocket _ws;
+        private WebSocket _ws;
 
         private int _uniq_id;
         
+        private ManualResetEvent _opened = new ManualResetEvent(false);
+        
         private Action<IChromeResponse> _onMessage = e =>
         {
-            Console.WriteLine("debug: " + e.result);
+            //Console.WriteLine("debug: " + e.result);
         };
 
         public Chrome(string remoteDebuggingUri)
@@ -48,49 +50,57 @@ namespace WikiScreen.Chrome
 
         public async Task Connect()
         {
-            _ws = new ClientWebSocket();
+            _opened.Reset();
+            
+            _ws = new WebSocket(_sessionWsEndpoint.ToString());
 
-            await _ws.ConnectAsync(_sessionWsEndpoint, CancellationToken.None);
+            _ws.Opened += _OnWS_Open;
+            _ws.MessageReceived += _OnWS_MessageReceived;
+            _ws.DataReceived += _OnWS_DataReceived;
+            _ws.Error += _OnWS_Error;
+            _ws.Closed += _OnWS_Closed;
+
+            
+            _ws.Open();
+            await Task.Run(() =>
+            {
+                _opened.WaitOne();
+            });
         }
 
-        public async void StartListen()
+        
+        
+        private void _OnWS_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
-            try
-            {
-                while (_ws.State == WebSocketState.Open)
-                {
-                    var stringResult = new StringBuilder();
+            Console.WriteLine(e.Exception);
+        }
+        
+        private void _OnWS_Closed(object sender, EventArgs e)
+        {
+            Console.WriteLine("CLOSE  CLOSE CLOSE ");
+        }
 
+        private void _OnWS_Open(object sender, EventArgs e)
+        {
+            _opened.Set();
+        }
 
-                    WebSocketReceiveResult result;
-                    do
-                    {
-                        var segment = WebSocket.CreateClientBuffer(BufferSize,BufferSize);
-                        result = await _ws.ReceiveAsync(segment, CancellationToken.None);
-                        
-                        Console.WriteLine("Get message " + result.Count);
+        private void _OnWS_MessageReceived(object sender, MessageReceivedEventArgs  e)
+        {
+            var stringResult = new StringBuilder();
+            
+            stringResult.Append(e.Message);
+            
+            Console.WriteLine("Raw message ");
+            
+            var res = JsonConvert.DeserializeObject<ChromeResponse>(stringResult.ToString());
 
-                        if (result.MessageType == WebSocketMessageType.Close)
-                        {
-                            await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
-                        }
-                        else
-                        {
-                            var str = Encoding.UTF8.GetString(segment.Array, 0, result.Count);
-                            stringResult.Append(str);
-                        }
+            _onMessage(res); 
+        }
 
-                    } while (!result.EndOfMessage);
-
-                    var res = JsonConvert.DeserializeObject<ChromeResponse>(stringResult.ToString());
-
-                    _onMessage(res);
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+        private void _OnWS_DataReceived(object sender, DataReceivedEventArgs e)
+        {
+            Console.WriteLine("Raw Data ");
         }
 
         private TRes SendRequest<TRes>()
@@ -125,6 +135,19 @@ namespace WikiScreen.Chrome
             
             return SendCommand(cmd);
         }
+        
+        //
+        
+        public Task<dynamic> GetLayoutMetrics()
+        {
+            var cmd = new ChromeRequest
+            {
+                method = "Page.getLayoutMetrics",
+                @params = new Dictionary<string, dynamic>()
+            };
+            
+            return SendCommand(cmd);
+        }
 
         public Task<dynamic> PageEnable()
         {
@@ -133,7 +156,7 @@ namespace WikiScreen.Chrome
                 method = "Page.enable",
                 @params = new Dictionary<string, dynamic>()
             };
-            
+
             return SendCommand(cmd);
         }
 
@@ -144,13 +167,72 @@ namespace WikiScreen.Chrome
                 method = "Page.captureScreenshot",
                 @params = new Dictionary<string, dynamic> {
                     { "clip", viewport },
-                    { "format", "jpg" },
-                    {"quality", 0}
+                    { "format", "png" },
+                    //{ "quality", 0}
                 }
             };
             
             return SendCommand(cmd);
             
+        }
+
+        public Task<dynamic> SetDeviceMetricsOverride(int w, int h) 
+        {
+            var cmd = new ChromeRequest
+            {
+                method = "Emulation.setDeviceMetricsOverride",
+                @params = new Dictionary<string, dynamic>
+                {
+                    {"width", w },
+                    {"screenWidth", w },
+                    {"height", h },
+                    {"screenHeight", h },
+                    {"positionX", 0 },
+                    {"positionY", 0 },
+                    {"deviceScaleFactor", 1 },
+                    {"mobile", false },
+                    {"fitWindow", true }
+                }
+            };
+            return SendCommand(cmd);
+            
+        }
+
+        public Task<dynamic> SetVisibleSize(int w, int h) 
+        {
+            var cmd = new ChromeRequest
+            {
+                method = "Emulation.setVisibleSize",
+                @params = new Dictionary<string, dynamic>
+                {
+                    {"width", w },
+                    {"height", h }
+                }
+            };
+            return SendCommand(cmd);
+            
+        }
+        //setVisibleSize
+
+        public async Task<dynamic> WaitForPage()
+        {
+            return await Task.Run(() =>
+            {
+                var t = new TaskCompletionSource<dynamic>();
+
+                void Cb(IChromeResponse s)
+                {
+                    if (s.method != "Page.loadEventFired") return;
+
+                    t.TrySetResult(s.result);
+
+                    _onMessage -= Cb;
+                }
+
+                _onMessage += Cb;
+
+                return t.Task;
+            });
         }
         
         public Task<dynamic> Eval(string command, bool await_promise)
@@ -161,7 +243,6 @@ namespace WikiScreen.Chrome
                 @params = new Dictionary<string, dynamic>
                 {
                     {"expression", command},
-                    //{"objectGroup", "console"},
                     {"includeCommandLineAPI", true},
                     {"doNotPauseOnExceptions", false},
                     {"returnByValue", true},
@@ -184,23 +265,10 @@ namespace WikiScreen.Chrome
 
             cmd.id = current_id;
 
-            var messageBuffer = ToJsonBytes(cmd);
-            var messagesCount = (int) Math.Ceiling((double) messageBuffer.Length / BufferSize);
-
-            for (var i = 0; i < messagesCount; i++)
-            {
-                var offset = BufferSize * i;
-                var count = BufferSize;
-                var lastMessage = i + 1 == messagesCount;
-
-                if (count * (i + 1) > messageBuffer.Length)
-                {
-                    count = messageBuffer.Length - offset;
-                }
-
-                _ws.SendAsync(new ArraySegment<byte>(messageBuffer, offset, count), WebSocketMessageType.Text,
-                    lastMessage, CancellationToken.None);
-            }
+            var cmd_str = ToJsonString(cmd);
+            
+            Console.WriteLine(cmd_str);
+            _ws.Send(cmd_str);
             
             Console.WriteLine("exec command " + current_id);
             
@@ -211,9 +279,7 @@ namespace WikiScreen.Chrome
                 void Cb(IChromeResponse s)
                 {
                     if (s.id != current_id) return;
-                    
-                    Console.WriteLine("Awaiter for " + current_id, s.id, s.result);
-                    
+
                     t.TrySetResult(s.result);
 
                     _onMessage -= Cb;
@@ -236,11 +302,18 @@ namespace WikiScreen.Chrome
             }
         }
 
-        private static byte[] ToJsonBytes<T>(T item)
+
+        private static string ToJsonString<T>(T item)
         {
             var str = JsonConvert.SerializeObject(item, Formatting.None);
-            
-            Console.WriteLine(str);
+
+            return str;
+        }
+
+        private static byte[] ToJsonBytes<T>(T item)
+        {
+            var str = ToJsonString(item);
+
             return Encoding.UTF8.GetBytes(str);
         }
     
