@@ -7,16 +7,16 @@ namespace WikiScreen.Chrome.Requests
     public interface IChromeResponse
     {
         string method { get; set; }
-         int? id { get; set; }
-         dynamic result { get; set; }
-        
+        int? id { get; set; }  
     }
     
     [Serializable]
-    public class ChromeResponse : IChromeResponse
+    public class ChromeResponse<TRes> : IChromeResponse
     {
         public string method { get; set; }
         public int? id { get; set; }
-        public dynamic result { get; set; }
+        public TRes result { get; set; }
     }
+    
+    
 }
