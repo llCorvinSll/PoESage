@@ -1,22 +1,35 @@
-﻿namespace WikiScreen.Chrome.Requests.Response
+﻿using Newtonsoft.Json;
+
+namespace WikiScreen.Chrome.Requests.Response
 {
     public class ElementBoundRect
     {
-        public double x { get; set; }
-        public double y { get; set; }
-        public double width { get; set; }
-        public double height { get; set; }
+        [JsonProperty(PropertyName = "x")]
+        public double? X { get; set; }
+        
+        [JsonProperty(PropertyName = "y")]
+        public double? Y { get; set; }
+        
+        [JsonProperty(PropertyName = "width")]
+        public double? Width { get; set; }
+        
+        [JsonProperty(PropertyName = "height")]
+        public double? Height { get; set; }
     }
     
     public class ElementBoundRectResult 
     {
-        public string type { get; set; }
-        public ElementBoundRect value { get; set; }
+        [JsonProperty(PropertyName = "type")]
+        public string Type { get; set; }
+        
+        [JsonProperty(PropertyName = "value")]
+        public ElementBoundRect Value { get; set; }
     }
 
     public class ScriptExecResult<TRes>
     {
-        public TRes  result { get; set; }
+        [JsonProperty(PropertyName = "result")]
+        public TRes Result { get; set; }
     }
     
     public class ElementBoundReactResultResponse : ChromeResponse<ScriptExecResult<ElementBoundRectResult>>

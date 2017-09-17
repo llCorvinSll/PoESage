@@ -1,39 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.Serialization;
+﻿using Newtonsoft.Json;
 
 namespace WikiScreen.Chrome.Requests
 {
-    [Serializable]
-    public class RemoteSessions : IChromeRequest
-    {
-        public int id { get; set; }
-        public string method { get; set; }
-        public Dictionary<string, dynamic> @params { get; set; }
-    }
-    
-    [Serializable]
-    [DataContract]
     public class RemoteSessionsResponse
     {
-        public RemoteSessionsResponse() { }
+        [JsonProperty(PropertyName = "devtoolsFrontendUrl")]
+        public string DevtoolsFrontendUrl;
 
-        [DataMember]
-        public string devtoolsFrontendUrl;
+        [JsonProperty(PropertyName = "faviconUrl")]
+        public string FaviconUrl;
 
-        [DataMember]
-        public string faviconUrl;
+        [JsonProperty(PropertyName = "thumbnailUrl")]
+        public string ThumbnailUrl;
 
-        [DataMember]
-        public string thumbnailUrl;
-
-        [DataMember]
-        public string title;
+        [JsonProperty(PropertyName = "title")]
+        public string Title;
         
-        [DataMember]
-        public string url;
+        [JsonProperty(PropertyName = "url")]
+        public string Url;
 
-        [DataMember]
-        public string webSocketDebuggerUrl;
+        [JsonProperty(PropertyName = "webSocketDebuggerUrl")]
+        public string WebSocketDebuggerUrl;
     }
 }

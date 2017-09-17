@@ -1,19 +1,25 @@
 ﻿using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace WikiScreen.Chrome.Requests
 {
     public interface IChromeRequest
     {
-        int id { get; set; } 
-        string method { get; set; }
-        Dictionary<string, dynamic> @params { get; set; }
+        int Id { get; set; } 
+        string Method { get; set; }
+        Dictionary<string, dynamic> Params { get; set; }
     }
 
 
     public class ChromeRequest : IChromeRequest
     {
-        public int id { get; set; }
-        public string method { get; set; }
-        public Dictionary<string, dynamic> @params { get; set; }
+        [JsonProperty(PropertyName = "id")]
+        public int Id { get; set; }
+        
+        [JsonProperty(PropertyName = "method")]
+        public string Method { get; set; }
+        
+        [JsonProperty(PropertyName = "params")]
+        public Dictionary<string, dynamic> Params { get; set; }
     }
 }

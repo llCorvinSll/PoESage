@@ -1,8 +1,11 @@
-﻿namespace WikiScreen.Chrome.Requests.Response
+﻿using Newtonsoft.Json;
+
+namespace WikiScreen.Chrome.Requests.Response
 {
     public class CaptureScreenshotResult
     {
-        public string data { get; set; }
+        [JsonProperty(PropertyName = "data")]
+        public string Data { get; set; }
     }
     
     public class CaptureScreenshotResponse : ChromeResponse<CaptureScreenshotResult>

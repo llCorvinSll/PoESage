@@ -1,39 +1,71 @@
-﻿namespace WikiScreen.Chrome.Requests.Response
+﻿using Newtonsoft.Json;
+
+namespace WikiScreen.Chrome.Requests.Response
 {
     public class LayoutViewport
     {
-        public int pageX { get; set; }
-        public int pageY { get; set; }
-        public int clientWidth { get; set; }
-        public int clientHeight { get; set; }
+        [JsonProperty(PropertyName = "pageX")]
+        public int? PageX { get; set; }
+        
+        [JsonProperty(PropertyName = "pageY")]
+        public int? PageY { get; set; }
+        
+        [JsonProperty(PropertyName = "clientWidth")]
+        public int? ClientWidth { get; set; }
+        
+        [JsonProperty(PropertyName = "clientHeight")]
+        public int? ClientHeight { get; set; }
     }
 
     public class VisualViewport
     {
-        public double offsetX {get;set;}
-        public double offsetY {get;set;}
-        public double pageX {get;set;}
-        public double pageY {get;set;}
-        public double clientWidth {get;set;}
-        public double clientHeight {get;set;}
-        public double scale {get;set;}
+        [JsonProperty(PropertyName = "offsetX")]
+        public double? OffsetX {get;set;}
+        
+        [JsonProperty(PropertyName = "offsetY")]
+        public double? OffsetY {get;set;}
+        
+        [JsonProperty(PropertyName = "pageX")]
+        public double? PageX {get;set;}
+        
+        [JsonProperty(PropertyName = "pageY")]
+        public double? PageY {get;set;}
+        
+        [JsonProperty(PropertyName = "clientWidth")]
+        public double? ClientWidth {get;set;}
+        
+        [JsonProperty(PropertyName = "clientHeight")]
+        public double? ClientHeight {get;set;}
+        
+        [JsonProperty(PropertyName = "scale")]
+        public double? Scale {get;set;}
     }
 
     public class ContentSize
     {
-        public double x { get; set; }
-        public double y { get; set; }
-        public double width { get; set; }
-        public double height { get; set; }
+        [JsonProperty(PropertyName = "x")]
+        public double? X { get; set; }
+        
+        [JsonProperty(PropertyName = "y")]
+        public double? Y { get; set; }
+        
+        [JsonProperty(PropertyName = "width")]
+        public double? Width { get; set; }
+        
+        [JsonProperty(PropertyName = "height")]
+        public double? Height { get; set; }
     }
 
     public class GetLayoutMetricsResult
-    {
-        public LayoutViewport layoutViewport { get; set; }
+    {  
+        [JsonProperty(PropertyName = "layoutViewport")]
+        public LayoutViewport LayoutViewport { get; set; }
         
-        public VisualViewport visualViewport { get; set; }
+        [JsonProperty(PropertyName = "visualViewport")]
+        public VisualViewport VisualViewport { get; set; }
         
-        public ContentSize contentSize { get; set; }
+        [JsonProperty(PropertyName = "contentSize")]
+        public ContentSize ContentSize { get; set; }
         
     }
 

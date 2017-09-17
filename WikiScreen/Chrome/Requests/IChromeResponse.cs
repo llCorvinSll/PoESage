@@ -1,22 +1,24 @@
-﻿
-
-using System;
+﻿using System;
+using Newtonsoft.Json;
 
 namespace WikiScreen.Chrome.Requests
 {
     public interface IChromeResponse
     {
-        string method { get; set; }
-        int? id { get; set; }  
+        string Method { get; set; }
+        int? Id { get; set; }  
     }
     
     [Serializable]
     public class ChromeResponse<TRes> : IChromeResponse
     {
-        public string method { get; set; }
-        public int? id { get; set; }
-        public TRes result { get; set; }
+        [JsonProperty(PropertyName = "method")]
+        public string Method { get; set; }
+        
+        [JsonProperty(PropertyName = "id")]
+        public int? Id { get; set; }
+        
+        [JsonProperty(PropertyName = "result")]
+        public TRes Result { get; set; }
     }
-    
-    
 }

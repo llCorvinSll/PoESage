@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Threading.Tasks;
 using WikiScreen.Chrome;
 
@@ -13,16 +12,12 @@ namespace WikiScreen
             {
                 var sessions = chrome.GetAvailableSessions();
 
-                Console.WriteLine("Available debugging sessions");
-                foreach (var s in sessions)
-                    Console.WriteLine(s.url);
-
                 if (sessions.Count == 0)
                     throw new Exception("All debugging sessions are taken.");
 
                 // Will drive first tab session
                 var sessionWSEndpoint =
-                    sessions[0].webSocketDebuggerUrl;
+                    sessions[0].WebSocketDebuggerUrl;
 
                 chrome.SetActiveSession(sessionWSEndpoint);
 
@@ -38,41 +33,27 @@ namespace WikiScreen
                 
                 
                 var layout_metrics = await chrome.GetLayoutMetrics();
-                var content_width = Convert.ToInt32(layout_metrics.result.contentSize.width);
-                var content_height = Convert.ToInt32(layout_metrics.result.contentSize.height);
+                var content_width = Convert.ToInt32(layout_metrics.Result.ContentSize.Width);
+                var content_height = Convert.ToInt32(layout_metrics.Result.ContentSize.Height);
 
                 await chrome.SetDeviceMetricsOverride(content_width, content_height, scale_factor);
 
-                var image_size = await chrome.getBoundingRectBySelector(".item-box:first-child");
+                var image_size = await chrome.GetBoundingRectBySelector(".item-box:first-child");
 
-                var val = image_size.result.result.value;
+                var val = image_size.Result.Result.Value;
                 
                 var screenshot = await chrome.ScreenElement(new Viewport
                 {
-                    x = val.x * scale_factor,
-                    y = val.y * scale_factor,
-                    width = val.width ,
-                    height = val.height ,
-                    scale = 1
+                    X = val.X.Value * scale_factor,
+                    Y = val.Y.Value * scale_factor,
+                    Width = val.Width.Value ,
+                    Height = val.Height.Value ,
+                    Scale = 1
                 });
                 
-                var raw_img = screenshot.result.data;
-                
-                GetMessage(raw_img);
+                var raw_img = screenshot.Result.Data;
 
                 return raw_img;
-
-            }
-        }
-        
-        static void GetMessage(string decoded)
-        {
-            Console.WriteLine(decoded.Length);
-            var bytes = Convert.FromBase64String(decoded);
-            using (var imageFile = new FileStream("./image.png", FileMode.Create))
-            {
-                imageFile.Write(bytes ,0, bytes.Length);
-                imageFile.Flush();
             }
         }
     }

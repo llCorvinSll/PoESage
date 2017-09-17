@@ -21,14 +21,13 @@ namespace WikiScreen.Chrome
             _remoteDebuggingUri = remoteDebuggingUri;
         }
 
-        public Action<JObject> onMessage = e =>
+        public Action<JObject> OnMessage = e =>
         {
-            //Console.WriteLine("debug: " + e.result);
         };
-        
-        private static string ID_FIELD = @"id";
-        private static string METHOD_FIELD = @"method";
-        
+
+        private const string IdField = @"id";
+        private const string MethodField = @"method";
+
         private WebSocket _ws;
         
         private const string JsonPostfix = "/json";
@@ -37,7 +36,7 @@ namespace WikiScreen.Chrome
         
         private Uri _sessionWsEndpoint;
 
-        private int _uniq_id;
+        private int _uniqId;
         
         private readonly ManualResetEvent _opened = new ManualResetEvent(false);
 
@@ -58,13 +57,13 @@ namespace WikiScreen.Chrome
         {
             var res = SendRequest<List<RemoteSessionsResponse>>();
             return (from r in res
-                where r.devtoolsFrontendUrl != null
+                where r.DevtoolsFrontendUrl != null
                 select r).ToList();
         }
         
-        public void SetActiveSession(string sessionWSEndpoint)
+        public void SetActiveSession(string sessionWsEndpoint)
         {
-            _sessionWsEndpoint = new Uri(sessionWSEndpoint.Replace("ws://localhost", "ws://127.0.0.1"));
+            _sessionWsEndpoint = new Uri(sessionWsEndpoint.Replace("ws://localhost", "ws://127.0.0.1"));
         }
         
         public async Task Connect()
@@ -94,15 +93,15 @@ namespace WikiScreen.Chrome
                 throw new Exception("Connection is not open.");
             }
 
-            _uniq_id++;
+            _uniqId++;
 
-            var current_id = _uniq_id;
+            var currentId = _uniqId;
 
-            cmd.id = current_id;
+            cmd.Id = currentId;
 
-            var cmd_str = ToJsonString(cmd);
+            var cmdStr = ToJsonString(cmd) ?? throw new ArgumentNullException(nameof(cmd));
 
-            _ws.Send(cmd_str);
+            _ws.Send(cmdStr);
             
             return await Task.Run(() =>
             {
@@ -110,33 +109,31 @@ namespace WikiScreen.Chrome
 
                 void Cb(JObject s)
                 {                   
-                    if (GetId(s) != current_id) return;
+                    if (GetId(s) != currentId) return;
 
                     var res = s.ToObject<TRes>();
 
                     t.TrySetResult(res);
 
-                    onMessage -= Cb;
+                    if (OnMessage != null) OnMessage -= Cb;
                 }
 
-                onMessage += Cb;
+                OnMessage += Cb;
 
                 return t.Task;
             });
         }
 
-        public static int GetId(JObject obj)
+        public static int? GetId(JObject obj)
         {
-            if (obj[ID_FIELD] == null) return -1;
-            var id = obj[ID_FIELD].Value<int>();
+            var id = obj[IdField]?.Value<int>();
 
             return id;
         }
         
         public static string GetMethod(JObject obj)
         {
-            if (obj[METHOD_FIELD] == null) return "";
-            var method = obj[METHOD_FIELD].Value<string>();
+            var method = obj[MethodField]?.Value<string>();
 
             return method;
         }
@@ -156,17 +153,15 @@ namespace WikiScreen.Chrome
 
             var res = JObject.Parse(stringResult.ToString());
 
-            onMessage(res); 
+            OnMessage(res); 
         }
 
         private void _OnWS_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
-            Console.WriteLine(e.Exception);
         }
         
         private void _OnWS_Closed(object sender, EventArgs e)
         {
-            Console.WriteLine("CLOSE CLOSE CLOSE");
         }
 
         private void _OnWS_Open(object sender, EventArgs e)
@@ -176,7 +171,6 @@ namespace WikiScreen.Chrome
         
         private void _OnWS_DataReceived(object sender, DataReceivedEventArgs e)
         {
-            Console.WriteLine("Raw Data ");
         }
         
         #endregion
@@ -192,13 +186,7 @@ namespace WikiScreen.Chrome
         
         private static T Deserialise<T>(string json)
         {
-            var obj = Activator.CreateInstance<T>();
-            using (var ms = new MemoryStream(Encoding.Unicode.GetBytes(json)))
-            {
-                var serializer = new DataContractJsonSerializer(obj.GetType());
-                obj = (T) serializer.ReadObject(ms);
-                return obj;
-            }
+            return JsonConvert.DeserializeObject<T>(json);
         }
 
         #endregion

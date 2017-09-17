@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using WikiScreen.Chrome.Requests;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using WikiScreen.Chrome.Requests.Response;
 
@@ -9,11 +10,20 @@ namespace WikiScreen.Chrome
 {
     public class Viewport
     {
-        public double x { get; set; }
-        public double y { get; set; }
-        public double width { get; set; }
-        public double height { get; set; }
-        public double scale { get; set; }
+        [JsonProperty(PropertyName = "x")]
+        public double X { get; set; }
+        
+        [JsonProperty(PropertyName = "y")]
+        public double Y { get; set; }
+        
+        [JsonProperty(PropertyName = "width")]
+        public double Width { get; set; }
+        
+        [JsonProperty(PropertyName = "height")]
+        public double Height { get; set; }
+        
+        [JsonProperty(PropertyName = "scale")]
+        public double Scale { get; set; }
     }
 
     public class Chrome : IDisposable
@@ -39,8 +49,8 @@ namespace WikiScreen.Chrome
         {
             var cmd = new ChromeRequest
             {
-                method = "Page.navigate",
-                @params = new Dictionary<string, dynamic>
+                Method = "Page.navigate",
+                Params = new Dictionary<string, dynamic>
                 {
                     {"url", uri}
                 }
@@ -55,8 +65,8 @@ namespace WikiScreen.Chrome
         {
             var cmd = new ChromeRequest
             {
-                method = "Page.getLayoutMetrics",
-                @params = new Dictionary<string, dynamic>()
+                Method = "Page.getLayoutMetrics",
+                Params = new Dictionary<string, dynamic>()
             };
 
             return _tr.SendCommand<GetLayoutMetricsResponse>(cmd);
@@ -66,8 +76,8 @@ namespace WikiScreen.Chrome
         {
             var cmd = new ChromeRequest
             {
-                method = "Page.enable",
-                @params = new Dictionary<string, dynamic>()
+                Method = "Page.enable",
+                Params = new Dictionary<string, dynamic>()
             };
 
             return _tr.SendCommand<ChromeResponse<dynamic>>(cmd);
@@ -77,8 +87,8 @@ namespace WikiScreen.Chrome
         {
             var cmd = new ChromeRequest
             {
-                method = "Page.captureScreenshot",
-                @params = new Dictionary<string, dynamic>
+                Method = "Page.captureScreenshot",
+                Params = new Dictionary<string, dynamic>
                 {
                     {"clip", viewport},
                     {"format", "png"}
@@ -88,12 +98,12 @@ namespace WikiScreen.Chrome
             return _tr.SendCommand<CaptureScreenshotResponse>(cmd);
         }
 
-        public Task<ChromeResponse<dynamic>> SetDeviceMetricsOverride(int w, int h, double scale_factor)
+        public Task<ChromeResponse<dynamic>> SetDeviceMetricsOverride(int w, int h, double scaleFactor)
         {
             var cmd = new ChromeRequest
             {
-                method = "Emulation.setDeviceMetricsOverride",
-                @params = new Dictionary<string, dynamic>
+                Method = "Emulation.setDeviceMetricsOverride",
+                Params = new Dictionary<string, dynamic>
                 {
                     {"width", w},
                     {"screenWidth", w},
@@ -101,7 +111,7 @@ namespace WikiScreen.Chrome
                     {"screenHeight", h},
                     {"positionX", 0},
                     {"positionY", 0},
-                    {"deviceScaleFactor", scale_factor},
+                    {"deviceScaleFactor", scaleFactor},
                     {"mobile", false},
                     {"fitWindow", true}
                 }
@@ -109,40 +119,9 @@ namespace WikiScreen.Chrome
             return _tr.SendCommand<ChromeResponse<dynamic>>(cmd);
         }
 
-        public Task<ElementBoundReactResultResponse> getBoundingRectBySelector(string selector)
+        public Task<ElementBoundReactResultResponse> GetBoundingRectBySelector(string selector)
         {
-            return Eval<ElementBoundReactResultResponse>(@"
-(function(selector) { return new Promise((fulfill, reject) => {
-        const element = document.querySelector(selector);
-
-        if(element) {
-            fulfill();
-            return;
-        }
-
-        new MutationObserver((mutations, observer) => {
-            const nodes = [];
-            
-            mutations.forEach((mutation) => {
-                nodes.push(...mutation.addedNodes);
-            });
-           
-            if (nodes.find((node) => node.matches(selector))) {
-                observer.disconnect();
-                fulfill();
-            }
-        }).observe(document.body, {
-            childList: true
-        })
-    }).then(() => {
-        const element = document.querySelector(selector);
-
-        var docRect = element.ownerDocument.documentElement.getBoundingClientRect();
-
-        const {left, top, width, height, x, y} = element.getBoundingClientRect();
-        return {x: left - docRect.left , y: top - docRect.top, width, height};
-    })
-})('" + selector + "')", true);
+            return Eval<ElementBoundReactResultResponse>(ChromeJsCommands.GetElementBoundsAsync(selector), true);
         }
 
         public async Task<dynamic> WaitForPage()
@@ -157,35 +136,35 @@ namespace WikiScreen.Chrome
 
                     t.TrySetResult(s);
 
-                    _tr.onMessage -= Cb;
+                    if (_tr.OnMessage != null) _tr.OnMessage -= Cb;
                 }
 
-                _tr.onMessage += Cb;
+                _tr.OnMessage += Cb;
 
                 return t.Task;
             });
         }
 
-        public Task<TRes> Eval<TRes>(string command, bool await_promise) where TRes : IChromeResponse
+        private Task<TRes> Eval<TRes>(string command, bool awaitPromise) where TRes : IChromeResponse
         {
             var cmd = new ChromeRequest
             {
-                method = "Runtime.evaluate",
-                @params = new Dictionary<string, dynamic>
+                Method = "Runtime.evaluate",
+                Params = new Dictionary<string, dynamic>
                 {
                     {"expression", command},
                     {"includeCommandLineAPI", true},
                     {"doNotPauseOnExceptions", false},
                     {"returnByValue", true},
-                    {"awaitPromise", await_promise}
+                    {"awaitPromise", awaitPromise}
                 }
             };
             return _tr.SendCommand<TRes>(cmd);
         }
 
-        public void SetActiveSession(string sessionWSEndpoint)
+        public void SetActiveSession(string sessionWsEndpoint)
         {
-            _tr.SetActiveSession(sessionWSEndpoint);
+            _tr.SetActiveSession(sessionWsEndpoint);
         }
 
         public void Dispose()
